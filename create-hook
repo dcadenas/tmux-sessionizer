@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# tms create hook
+#
+# Called when you type a non-existent name in the tms picker.
+# Example: create-hook "my-app" "/home/user/code" "/home/user/work"
+#
+# Parameters:
+#   $1 = name you typed
+#   $2, $3... = search directories from your config
+#
+# Output (optional):
+#   Print directory name to stdout to override session name
+#   If no output, session name defaults to $1
+#
+# Must: Create a directory that tms can discover, exit 0 on success
+
+set -e
+
+NAME="$1"
+FIRST_DIR="$2"
+
+# Detect Git URL (GitHub, GitLab, etc.) and clone it
+if [[ "$NAME" =~ ^https?://[^/]+/([^/]+)/([^/]+)(\.git)?$ ]]; then
+    REPO_NAME="${BASH_REMATCH[2]%.git}"
+    TARGET_DIR="$FIRST_DIR/$REPO_NAME"
+
+    # Only clone if directory doesn't exist
+    if [[ ! -d "$TARGET_DIR" ]]; then
+        echo "Cloning $REPO_NAME..." >&2
+        git clone "$NAME" "$TARGET_DIR" 2>&1 | sed 's/^/  /' >&2
+        echo "Done!" >&2
+    else
+        echo "Directory $REPO_NAME already exists, opening..." >&2
+    fi
+
+    echo "$REPO_NAME"  # Tell tms the actual directory name
+    exit 0
+fi
+
+# Default: create new directory with git init
+DIR="$FIRST_DIR/$NAME"
+mkdir -p "$DIR"
+cd "$DIR"
+git init -q
+
+# No output = use original name from picker
+
+# Example: customize based on name pattern
+# if [[ "$NAME" == *-rs ]]; then
+#     cargo init --name "${NAME%-rs}"
+#     echo "${NAME%-rs}"  # Return the actual directory name
+# fi
