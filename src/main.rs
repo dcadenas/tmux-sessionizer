@@ -95,18 +95,28 @@ fn get_session_list(
         config.session_sort_order,
         Some(SessionSortOrderConfig::LastAttached)
     ) {
-        // Get active sessions from tmux with timestamps, excluding the currently attached one
+        // Get all tmux sessions with timestamps and attached status
         let active_sessions_raw =
-            tmux.list_sessions("'#{?session_attached,,#{session_name}#,#{session_last_attached}}'");
+            tmux.list_sessions("'#{session_name},#{session_last_attached},#{session_attached}'");
+
+        // Get the current session name so we can exclude it from the active/bold group
+        let current_session = tmux.display_message("#{session_name}").trim().to_owned();
 
         // Parse into (name, timestamp) pairs
+        // Attached sessions (excluding current) get i64::MAX so they sort first
         let active_sessions: Vec<(&str, i64)> = active_sessions_raw
             .trim()
             .split('\n')
             .filter_map(|line| {
                 let line = line.trim_matches('\'');
-                let (name, timestamp) = line.split_once(',')?;
-                let timestamp = timestamp.parse::<i64>().ok()?;
+                let mut parts = line.splitn(3, ',');
+                let name = parts.next()?.trim();
+                if name.is_empty() || name == current_session {
+                    return None;
+                }
+                let last_attached = parts.next().unwrap_or("").parse::<i64>().unwrap_or(0);
+                let attached = parts.next().unwrap_or("0").parse::<u32>().unwrap_or(0);
+                let timestamp = if attached > 0 { i64::MAX } else { last_attached };
                 Some((name, timestamp))
             })
             .collect();
