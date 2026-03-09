@@ -211,6 +211,19 @@ impl Tmux {
 
     // miscellaneous
 
+    pub fn set_hook(&self, hook_name: &str, command: &str) -> process::Output {
+        self.execute_tmux_command(&[
+            "set-hook",
+            "-g",
+            hook_name,
+            &format!("run-shell \"{command}\""),
+        ])
+    }
+
+    pub fn install_refresh_hook(&self) {
+        self.set_hook("pane-focus-in", "tms refresh");
+    }
+
     pub fn send_keys(&self, command: &str, pane: Option<&str>) -> process::Output {
         let mut args = vec!["send-keys"];
 
