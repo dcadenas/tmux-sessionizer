@@ -77,6 +77,7 @@ impl Session {
 
         if !tmux.session_exists(&session_name) {
             tmux.new_session(Some(&session_name), path.to_str());
+            tmux.install_refresh_hook();
             tmux.run_session_create_script(path, &session_name, config)?;
         }
 

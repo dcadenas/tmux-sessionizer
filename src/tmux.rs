@@ -268,6 +268,7 @@ impl Tmux {
         repo_name: &str,
         config: &Config,
     ) -> Result<()> {
+        self.install_refresh_hook();
         let worktrees = repo.worktrees(config).change_context(TmsError::GitError)?;
         let worktrees = worktrees
             .iter()
