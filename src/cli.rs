@@ -153,6 +153,9 @@ pub struct RenameCommand {
 pub struct RefreshCommand {
     /// The session's name. If not provided gets current session
     name: Option<String>,
+    #[arg(long, hide = true)]
+    /// Only refresh bare repos (used by auto-refresh hook)
+    bare_only: bool,
 }
 
 #[derive(Debug, Args)]
@@ -651,6 +654,9 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
         .collect();
 
     if let Ok(repository) = RepoProvider::open(Path::new(&session_path), &config) {
+        if args.bare_only && !repository.is_bare() {
+            return Ok(());
+        }
         let mut num_worktree_windows = 0;
         if let Ok(worktrees) = repository.worktrees(&config) {
             for worktree in worktrees.iter() {
@@ -664,10 +670,11 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
                     continue;
                 }
                 num_worktree_windows += 1;
-                tmux.new_window(
+                tmux.new_window_detached(
                     Some(&worktree_name),
                     Some(&worktree.path()?.to_string()?),
                     Some(&session_name),
+                    true,
                 );
             }
         }
@@ -678,7 +685,7 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
                 .lines()
                 .count();
             if count_current_windows <= num_worktree_windows {
-                tmux.new_window(None, Some(&session_path), Some(&session_name));
+                tmux.new_window_detached(None, Some(&session_path), Some(&session_name), true);
             }
         }
     }

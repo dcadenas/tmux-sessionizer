@@ -173,7 +173,21 @@ impl Tmux {
         path: Option<&str>,
         session: Option<&str>,
     ) -> process::Output {
+        self.new_window_detached(name, path, session, false)
+    }
+
+    pub fn new_window_detached(
+        &self,
+        name: Option<&str>,
+        path: Option<&str>,
+        session: Option<&str>,
+        detached: bool,
+    ) -> process::Output {
         let mut args = vec!["new-window"];
+
+        if detached {
+            args.push("-d");
+        }
 
         if let Some(name) = name {
             args.extend(["-n", name]);
@@ -221,7 +235,7 @@ impl Tmux {
     }
 
     pub fn install_refresh_hook(&self) {
-        self.set_hook("pane-focus-in", "tms refresh");
+        self.set_hook("pane-focus-in", "tms refresh --bare-only");
     }
 
     pub fn send_keys(&self, command: &str, pane: Option<&str>) -> process::Output {
