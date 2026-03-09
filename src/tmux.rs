@@ -211,7 +211,7 @@ impl Tmux {
 
     // miscellaneous
 
-    pub fn set_hook(&self, hook_name: &str, command: &str) -> process::Output {
+    fn set_hook(&self, hook_name: &str, command: &str) -> process::Output {
         self.execute_tmux_command(&[
             "set-hook",
             "-g",

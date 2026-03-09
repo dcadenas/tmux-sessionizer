@@ -626,7 +626,7 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
 
     if let Ok(metadata) = std::fs::metadata(&debounce_file) {
         if let Ok(modified) = metadata.modified() {
-            if modified.elapsed().unwrap_or_default() < std::time::Duration::from_secs(5) {
+            if modified.elapsed().unwrap_or(std::time::Duration::from_secs(10)) < std::time::Duration::from_secs(5) {
                 return Ok(());
             }
         }
