@@ -38,6 +38,7 @@ impl Session {
     }
 
     pub fn switch_to(&self, tmux: &Tmux, config: &Config) -> Result<()> {
+        tmux.install_refresh_hook();
         match &self.session_type {
             SessionType::Git(repo) => self.switch_to_repo_session(repo, tmux, config),
             SessionType::Bookmark(path) => self.switch_to_bookmark_session(tmux, path, config),
@@ -77,7 +78,6 @@ impl Session {
 
         if !tmux.session_exists(&session_name) {
             tmux.new_session(Some(&session_name), path.to_str());
-            tmux.install_refresh_hook();
             tmux.run_session_create_script(path, &session_name, config)?;
         }
 
