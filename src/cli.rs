@@ -617,6 +617,21 @@ fn rename_subcommand(args: &RenameCommand, tmux: &Tmux) -> Result<()> {
 }
 
 fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result<()> {
+    // Debounce: skip if last refresh was less than 5 seconds ago
+    let debounce_file = dirs::config_dir()
+        .or_else(dirs::home_dir)
+        .map(|d| d.join("tms/.last-refresh"))
+        .ok_or(TmsError::ConfigError)
+        .attach_printable("Could not determine config directory")?;
+
+    if let Ok(metadata) = std::fs::metadata(&debounce_file) {
+        if let Ok(modified) = metadata.modified() {
+            if modified.elapsed().unwrap_or_default() < std::time::Duration::from_secs(5) {
+                return Ok(());
+            }
+        }
+    }
+
     let session_name = args
         .name
         .clone()
@@ -667,6 +682,12 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
             }
         }
     }
+
+    // Write debounce timestamp after successful refresh
+    if let Some(parent) = debounce_file.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::File::create(&debounce_file);
 
     Ok(())
 }
