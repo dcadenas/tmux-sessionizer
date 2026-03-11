@@ -38,8 +38,6 @@ impl Display for ConfigError {
 pub struct Config {
     pub default_session: Option<String>,
     pub display_full_path: Option<bool>,
-    pub search_submodules: Option<bool>,
-    pub recursive_submodules: Option<bool>,
     pub switch_filter_unknown: Option<bool>,
     pub session_sort_order: Option<SessionSortOrderConfig>,
     pub excluded_dirs: Option<Vec<String>>,
@@ -57,8 +55,6 @@ pub struct Config {
 pub struct ConfigExport {
     pub default_session: Option<String>,
     pub display_full_path: bool,
-    pub search_submodules: bool,
-    pub recursive_submodules: bool,
     pub switch_filter_unknown: bool,
     pub session_sort_order: SessionSortOrderConfig,
     pub excluded_dirs: Vec<String>,
@@ -75,8 +71,6 @@ impl From<Config> for ConfigExport {
         Self {
             default_session: value.default_session,
             display_full_path: value.display_full_path.unwrap_or_default(),
-            search_submodules: value.search_submodules.unwrap_or_default(),
-            recursive_submodules: value.recursive_submodules.unwrap_or_default(),
             switch_filter_unknown: value.switch_filter_unknown.unwrap_or_default(),
             session_sort_order: value.session_sort_order.unwrap_or_default(),
             excluded_dirs: value.excluded_dirs.unwrap_or_default(),

@@ -9,7 +9,7 @@ use crate::{
     configs::Config,
     dirty_paths::DirtyUtf8Path,
     error::TmsError,
-    repos::{find_repos, find_submodules, RepoProvider},
+    repos::{find_repos, RepoProvider},
     tmux::Tmux,
     Result,
 };
@@ -134,12 +134,6 @@ fn insert_session(
     } else {
         session.name.clone()
     };
-    let SessionType::Git(repo) = &session.session_type;
-    if config.search_submodules == Some(true) {
-        if let Ok(Some(submodules)) = repo.submodules() {
-            find_submodules(submodules, &visible_name, sessions, config)?;
-        }
-    }
     sessions.insert_session(visible_name, session);
     Ok(())
 }

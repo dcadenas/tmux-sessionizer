@@ -1,6 +1,6 @@
 use aho_corasick::{AhoCorasickBuilder, MatchKind};
 use error_stack::{report, Report, ResultExt};
-use gix::{Repository, Submodule};
+use gix::Repository;
 use std::{
     collections::{HashMap, VecDeque},
     fs::{self},
@@ -11,7 +11,7 @@ use std::{
 use crate::{
     configs::{Config, SearchDirectory},
     dirty_paths::DirtyUtf8Path,
-    session::{Session, SessionContainer, SessionType},
+    session::{Session, SessionType},
     Result, TmsError,
 };
 
@@ -86,12 +86,6 @@ impl RepoProvider {
                 .ok_or(TmsError::GitError)?
                 .shorten()
                 .to_string()),
-        }
-    }
-
-    pub fn submodules(&'_ self) -> Result<Option<impl Iterator<Item = Submodule<'_>>>> {
-        match self {
-            RepoProvider::Git(repo) => repo.submodules().change_context(TmsError::GitError),
         }
     }
 
@@ -222,41 +216,3 @@ where
     }
 }
 
-pub fn find_submodules<'a>(
-    submodules: impl Iterator<Item = Submodule<'a>>,
-    parent_name: &String,
-    repos: &mut impl SessionContainer,
-    config: &Config,
-) -> Result<()> {
-    for submodule in submodules {
-        let repo = match submodule.open() {
-            Ok(Some(repo)) => repo,
-            _ => continue,
-        };
-        let path = match repo.workdir() {
-            Some(path) => path,
-            _ => continue,
-        };
-        let submodule_file_name = path
-            .file_name()
-            .ok_or_else(|| {
-                Report::new(TmsError::GitError).attach_printable("Not a valid submodule name")
-            })?
-            .to_string()?;
-        let session_name = format!("{}>{}", parent_name, submodule_file_name);
-        let name = if let Some(true) = config.display_full_path {
-            path.display().to_string()
-        } else {
-            session_name.clone()
-        };
-
-        if config.recursive_submodules == Some(true) {
-            if let Ok(Some(submodules)) = repo.submodules() {
-                find_submodules(submodules, &name, repos, config)?;
-            }
-        }
-        let session = Session::new(session_name, SessionType::Git(repo.into()));
-        repos.insert_session(name, session);
-    }
-    Ok(())
-}

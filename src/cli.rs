@@ -98,12 +98,6 @@ pub struct ConfigArgs {
     /// Use the full path when displaying directories
     display_full_path: Option<bool>,
     #[arg(long, value_name = "true | false")]
-    /// Also show initialized submodules
-    search_submodules: Option<bool>,
-    #[arg(long, value_name = "true | false")]
-    /// Search submodules for submodules
-    recursive_submodules: Option<bool>,
-    #[arg(long, value_name = "true | false")]
     ///Only include sessions from search paths in the switcher
     switch_filter_unknown: Option<bool>,
     #[arg(long, short = 'd', value_name = "max depth", num_args = 1..)]
@@ -384,14 +378,6 @@ fn config_command(cmd: &ConfigCommand, mut config: Config) -> Result<()> {
 
     if let Some(display) = args.display_full_path {
         config.display_full_path = Some(display.to_owned());
-    }
-
-    if let Some(submodules) = args.search_submodules {
-        config.search_submodules = Some(submodules.to_owned());
-    }
-
-    if let Some(submodules) = args.recursive_submodules {
-        config.recursive_submodules = Some(submodules.to_owned());
     }
 
     if let Some(switch_filter_unknown) = args.switch_filter_unknown {
