@@ -25,6 +25,12 @@ impl Default for Tmux {
 }
 
 impl Tmux {
+    pub fn with_socket(socket_name: &str) -> Self {
+        Self {
+            socket_name: socket_name.to_string(),
+        }
+    }
+
     // Private utility functions
 
     fn execute_tmux_command(&self, args: &[&str]) -> process::Output {
