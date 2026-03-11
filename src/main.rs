@@ -74,10 +74,14 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some(session) = sessions.find_session(&selected_str) {
+    if let Some((session_part, window_part)) = selected_str.split_once('/') {
+        // session/window entry — switch to session and focus window
+        let tmux_session = session_part.replace('.', "_");
+        tmux.switch_client(&tmux_session);
+        tmux.select_window(&format!("{}:{}", tmux_session, window_part));
+    } else if let Some(session) = sessions.find_session(&selected_str) {
         session.switch_to(&tmux, &config)?;
     } else {
-        // Non-repo tmux session — just switch to it
         tmux.switch_client(&selected_str.replace('.', "_"));
     }
 
