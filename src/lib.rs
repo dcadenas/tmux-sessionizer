@@ -3,7 +3,6 @@ pub mod configs;
 pub mod dirty_paths;
 pub mod error;
 pub mod keymap;
-pub mod marks;
 pub mod picker;
 pub mod repos;
 pub mod session;

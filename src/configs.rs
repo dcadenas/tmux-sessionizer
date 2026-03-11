@@ -51,7 +51,6 @@ pub struct Config {
     pub shortcuts: Option<Keymap>,
     pub bookmarks: Option<Vec<String>>,
     pub session_configs: Option<HashMap<String, SessionConfig>>,
-    pub marks: Option<HashMap<String, String>>,
     pub clone_repo_switch: Option<CloneRepoSwitchConfig>,
 }
 
@@ -70,7 +69,6 @@ pub struct ConfigExport {
     pub shortcuts: Keymap,
     pub bookmarks: Vec<String>,
     pub session_configs: HashMap<String, SessionConfig>,
-    pub marks: HashMap<String, String>,
     pub clone_repo_switch: CloneRepoSwitchConfig,
 }
 
@@ -96,7 +94,6 @@ impl From<Config> for ConfigExport {
                 .unwrap_or_default(),
             bookmarks: value.bookmarks.unwrap_or_default(),
             session_configs: value.session_configs.unwrap_or_default(),
-            marks: value.marks.unwrap_or_default(),
             clone_repo_switch: value.clone_repo_switch.unwrap_or_default(),
         }
     }
@@ -273,27 +270,6 @@ impl Config {
         }
     }
 
-    pub fn add_mark(&mut self, path: String, index: usize) {
-        let marks = &mut self.marks;
-        match marks {
-            Some(ref mut marks) => {
-                marks.insert(index.to_string(), path);
-            }
-            None => {
-                self.marks = Some(HashMap::from([(index.to_string(), path)]));
-            }
-        }
-    }
-
-    pub fn delete_mark(&mut self, index: usize) {
-        if let Some(ref mut marks) = self.marks {
-            marks.remove(&index.to_string());
-        }
-    }
-
-    pub fn clear_marks(&mut self) {
-        self.marks = None;
-    }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
