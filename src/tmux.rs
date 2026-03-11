@@ -220,7 +220,7 @@ impl Tmux {
     }
 
     pub fn list_session_windows(&self, session: &str) -> Vec<String> {
-        let output = self.list_windows("'#{window_name}'", Some(session));
+        let output = self.list_windows("'#{window_index}:#{window_name}'", Some(session));
         output
             .trim()
             .split('\n')

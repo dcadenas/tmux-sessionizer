@@ -253,8 +253,11 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
     {
         if let Some((session_part, window_part)) = target_session.split_once('/') {
             let tmux_session = session_part.replace('.', "_");
+            let window_target = window_part
+                .split_once(':')
+                .map_or(window_part, |(idx, _)| idx);
             tmux.switch_client(&tmux_session);
-            tmux.select_window(&format!("{}:{}", tmux_session, window_part));
+            tmux.select_window(&format!("{}:{}", tmux_session, window_target));
         } else {
             tmux.switch_client(&target_session.replace('.', "_"));
         }

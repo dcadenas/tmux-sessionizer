@@ -336,7 +336,10 @@ impl<'a> Picker<'a> {
             let output = match self.preview {
                 Some(Preview::SessionPane) => {
                     if let Some((session, window)) = item_data.split_once('/') {
-                        let target = format!("{}:{}", session.replace('.', "_"), window);
+                        let window_target = window
+                            .split_once(':')
+                            .map_or(window, |(idx, _)| idx);
+                        let target = format!("{}:{}", session.replace('.', "_"), window_target);
                         self.tmux.capture_pane(&target)
                     } else {
                         self.tmux.capture_pane(item_data)

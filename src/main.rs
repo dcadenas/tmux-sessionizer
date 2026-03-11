@@ -78,8 +78,12 @@ fn main() -> Result<()> {
     if let Some((session_part, window_part)) = selected_str.split_once('/') {
         // session/window entry — switch to session and focus window
         let tmux_session = session_part.replace('.', "_");
+        // window_part is "index:name" — extract index for tmux target
+        let window_target = window_part
+            .split_once(':')
+            .map_or(window_part, |(idx, _)| idx);
         tmux.switch_client(&tmux_session);
-        tmux.select_window(&format!("{}:{}", tmux_session, window_part));
+        tmux.select_window(&format!("{}:{}", tmux_session, window_target));
     } else if let Some(session) = sessions.find_session(&selected_str) {
         session.switch_to(&tmux, &config)?;
     } else {
