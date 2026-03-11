@@ -219,6 +219,16 @@ impl Tmux {
         Tmux::stdout_to_string(output)
     }
 
+    pub fn list_session_windows(&self, session: &str) -> Vec<String> {
+        let output = self.list_windows("'#{window_name}'", Some(session));
+        output
+            .trim()
+            .split('\n')
+            .map(|line| line.replace('\'', "").trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
     pub fn select_window(&self, window: &str) -> process::Output {
         self.execute_tmux_command(&["select-window", "-t", window])
     }
