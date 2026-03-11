@@ -76,6 +76,9 @@ fn main() -> Result<()> {
 
     if let Some(session) = sessions.find_session(&selected_str) {
         session.switch_to(&tmux, &config)?;
+    } else {
+        // Non-repo tmux session — just switch to it
+        tmux.switch_client(&selected_str.replace('.', "_"));
     }
 
     Ok(())
