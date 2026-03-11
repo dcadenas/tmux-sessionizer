@@ -35,8 +35,6 @@ pub enum CliCommand {
     #[command(arg_required_else_help = true)]
     /// Configure the defaults for search paths and excluded directories
     Config(Box<ConfigCommand>),
-    /// Initialize tmux with the default sessions
-    Start,
     /// Display other sessions with a fuzzy finder and a preview window
     Switch,
     /// Display the current session's windows with a fuzzy finder and a preview window
@@ -97,9 +95,6 @@ pub struct ConfigArgs {
     #[arg(long = "full-path", value_name = "true | false")]
     /// Use the full path when displaying directories
     display_full_path: Option<bool>,
-    #[arg(long, value_name = "true | false")]
-    ///Only include sessions from search paths in the switcher
-    switch_filter_unknown: Option<bool>,
     #[arg(long, short = 'd', value_name = "max depth", num_args = 1..)]
     /// The maximum depth to traverse when searching for repositories in search paths, length
     /// should match the number of search paths if specified (defaults to 10)
@@ -171,11 +166,6 @@ impl Cli {
         let config = Config::new().change_context(TmsError::ConfigError)?;
 
         match &self.command {
-            Some(CliCommand::Start) => {
-                start_command(config, tmux)?;
-                Ok(SubCommandGiven::Yes)
-            }
-
             Some(CliCommand::Switch) => {
                 switch_command(config, tmux)?;
                 Ok(SubCommandGiven::Yes)
@@ -233,44 +223,6 @@ impl Cli {
             None => Ok(SubCommandGiven::No(config.into())),
         }
     }
-}
-
-fn start_command(config: Config, tmux: &Tmux) -> Result<()> {
-    if let Some(sessions) = &config.sessions {
-        for session in sessions {
-            let session_path = session
-                .path
-                .as_ref()
-                .map(shellexpand::full)
-                .transpose()
-                .change_context(TmsError::IoError)?;
-
-            tmux.new_session(session.name.as_deref(), session_path.as_deref());
-
-            if let Some(windows) = &session.windows {
-                for window in windows {
-                    let window_path = window
-                        .path
-                        .as_ref()
-                        .map(shellexpand::full)
-                        .transpose()
-                        .change_context(TmsError::IoError)?;
-
-                    tmux.new_window(window.name.as_deref(), window_path.as_deref(), None);
-
-                    if let Some(window_command) = &window.command {
-                        tmux.send_keys(window_command, None);
-                    }
-                }
-                tmux.kill_window(":1");
-            }
-        }
-        tmux.attach_session(None, None);
-    } else {
-        tmux.tmux();
-    }
-
-    Ok(())
 }
 
 fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
@@ -378,10 +330,6 @@ fn config_command(cmd: &ConfigCommand, mut config: Config) -> Result<()> {
 
     if let Some(display) = args.display_full_path {
         config.display_full_path = Some(display.to_owned());
-    }
-
-    if let Some(switch_filter_unknown) = args.switch_filter_unknown {
-        config.switch_filter_unknown = Some(switch_filter_unknown.to_owned());
     }
 
     if let Some(dirs) = &args.excluded_dirs {

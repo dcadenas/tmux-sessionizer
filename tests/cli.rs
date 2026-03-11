@@ -44,7 +44,6 @@ fn tms_config() -> anyhow::Result<()> {
     let expected_config = Config {
         default_session: Some(default_session.clone()),
         display_full_path: Some(false),
-        switch_filter_unknown: Some(false),
         session_sort_order: Some(SessionSortOrderConfig::Alphabetical),
         excluded_dirs: Some(vec![excluded_dir.clone()]),
         search_paths: None,
@@ -78,8 +77,6 @@ fn tms_config() -> anyhow::Result<()> {
             "--session",
             &default_session,
             "--full-path",
-            "false",
-            "--switch-filter-unknown",
             "false",
             "--session-sort-order",
             "Alphabetical",
