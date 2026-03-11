@@ -8,6 +8,7 @@ use tms::{
     cli::{Cli, SubCommandGiven},
     configs::SessionSortOrderConfig,
     error::{Result, Suggestion, TmsError},
+    expand_windows,
     session::{create_sessions, SessionContainer},
     tmux::Tmux,
 };
@@ -86,34 +87,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Expand active sessions with multiple windows into `session/window` entries.
-pub fn expand_windows(
-    sessions: Vec<String>,
-    active_names: &HashSet<&str>,
-    tmux: &Tmux,
-) -> Vec<String> {
-    let mut result = Vec::new();
-    for name in sessions {
-        let normalized = name.replace(['.', '-'], "_");
-        let is_active = active_names.contains(name.as_str())
-            || active_names.contains(normalized.as_str());
-        if is_active {
-            let tmux_name = &normalized;
-            let windows = tmux.list_session_windows(tmux_name);
-            if windows.len() > 1 {
-                for win in &windows {
-                    result.push(format!("{}/{}", name, win));
-                }
-            } else {
-                result.push(name);
-            }
-        } else {
-            result.push(name);
-        }
-    }
-    result
 }
 
 /// Get the session list, optionally sorted with active sessions first

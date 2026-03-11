@@ -9,7 +9,7 @@ pub mod session;
 pub mod tmux;
 
 use configs::Config;
-use std::process;
+use std::{collections::HashSet, process};
 
 use crate::{
     error::{Result, TmsError},
@@ -23,6 +23,34 @@ pub fn execute_command(command: &str, args: Vec<String>) -> process::Output {
         .stdin(process::Stdio::inherit())
         .output()
         .unwrap_or_else(|_| panic!("Failed to execute command `{command}`"))
+}
+
+/// Expand active sessions with multiple windows into `session/window` entries.
+pub fn expand_windows(
+    sessions: Vec<String>,
+    active_names: &HashSet<&str>,
+    tmux: &Tmux,
+) -> Vec<String> {
+    let mut result = Vec::new();
+    for name in sessions {
+        let normalized = name.replace(['.', '-'], "_");
+        let is_active = active_names.contains(name.as_str())
+            || active_names.contains(normalized.as_str());
+        if is_active {
+            let tmux_name = &normalized;
+            let windows = tmux.list_session_windows(tmux_name);
+            if windows.len() > 1 {
+                for win in &windows {
+                    result.push(format!("{}/{}", name, win));
+                }
+            } else {
+                result.push(name);
+            }
+        } else {
+            result.push(name);
+        }
+    }
+    result
 }
 
 pub fn get_single_selection(

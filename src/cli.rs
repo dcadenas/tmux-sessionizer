@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::canonicalize,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -10,7 +10,7 @@ use crate::{
         CloneRepoSwitchConfig, Config, ConfigExport, SearchDirectory, SessionSortOrderConfig,
     },
     dirty_paths::DirtyUtf8Path,
-    execute_command, get_single_selection,
+    execute_command, expand_windows, get_single_selection,
     picker::Preview,
     repos::RepoProvider,
     session::{create_sessions, SessionContainer},
@@ -243,10 +243,21 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
 
     let sessions: Vec<String> = sessions.into_iter().map(|s| s.0.to_string()).collect();
 
+    // All sessions in switch are active tmux sessions
+    let active_names: HashSet<String> = sessions.iter().cloned().collect();
+    let active_refs: HashSet<&str> = active_names.iter().map(|s| s.as_str()).collect();
+    let sessions = expand_windows(sessions, &active_refs, tmux);
+
     if let Some(target_session) =
         get_single_selection(&sessions, Some(Preview::SessionPane), &config, tmux)?
     {
-        tmux.switch_client(&target_session.replace('.', "_"));
+        if let Some((session_part, window_part)) = target_session.split_once('/') {
+            let tmux_session = session_part.replace('.', "_");
+            tmux.switch_client(&tmux_session);
+            tmux.select_window(&format!("{}:{}", tmux_session, window_part));
+        } else {
+            tmux.switch_client(&target_session.replace('.', "_"));
+        }
     }
 
     Ok(())
