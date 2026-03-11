@@ -49,7 +49,6 @@ pub struct Config {
     pub picker_colors: Option<PickerColorConfig>,
     pub input_position: Option<InputPosition>,
     pub shortcuts: Option<Keymap>,
-    pub bookmarks: Option<Vec<String>>,
     pub session_configs: Option<HashMap<String, SessionConfig>>,
     pub clone_repo_switch: Option<CloneRepoSwitchConfig>,
 }
@@ -67,7 +66,6 @@ pub struct ConfigExport {
     pub sessions: Vec<Session>,
     pub picker_colors: PickerColorConfig,
     pub shortcuts: Keymap,
-    pub bookmarks: Vec<String>,
     pub session_configs: HashMap<String, SessionConfig>,
     pub clone_repo_switch: CloneRepoSwitchConfig,
 }
@@ -92,7 +90,6 @@ impl From<Config> for ConfigExport {
                 .as_ref()
                 .map(Keymap::with_defaults)
                 .unwrap_or_default(),
-            bookmarks: value.bookmarks.unwrap_or_default(),
             session_configs: value.session_configs.unwrap_or_default(),
             clone_repo_switch: value.clone_repo_switch.unwrap_or_default(),
         }
@@ -229,45 +226,6 @@ impl Config {
         }
 
         Ok(search_dirs)
-    }
-
-    pub fn add_bookmark(&mut self, path: String) {
-        let bookmarks = &mut self.bookmarks;
-        match bookmarks {
-            Some(ref mut bookmarks) => {
-                if !bookmarks.contains(&path) {
-                    bookmarks.push(path);
-                }
-            }
-            None => {
-                self.bookmarks = Some(vec![path]);
-            }
-        }
-    }
-
-    pub fn delete_bookmark(&mut self, path: String) {
-        if let Some(ref mut bookmarks) = self.bookmarks {
-            if let Some(idx) = bookmarks.iter().position(|bookmark| *bookmark == path) {
-                bookmarks.remove(idx);
-            }
-        }
-    }
-
-    pub fn bookmark_paths(&self) -> Vec<PathBuf> {
-        if let Some(bookmarks) = &self.bookmarks {
-            bookmarks
-                .iter()
-                .filter_map(|b| {
-                    if let Ok(expanded) = shellexpand::full(b) {
-                        PathBuf::from(expanded.to_string()).canonicalize().ok()
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        } else {
-            Vec::new()
-        }
     }
 
 }

@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    env::current_dir,
     fs::canonicalize,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -55,8 +54,6 @@ pub enum CliCommand {
     CloneRepo(CloneRepoCommand),
     /// Initialize empty repository
     InitRepo(InitRepoCommand),
-    /// Bookmark a directory so it is available to select along with the Git repositories
-    Bookmark(BookmarkCommand),
     /// Open a session
     OpenSession(OpenSessionCommand),
 }
@@ -168,15 +165,6 @@ pub struct InitRepoCommand {
 }
 
 #[derive(Debug, Args)]
-pub struct BookmarkCommand {
-    #[arg(long, short)]
-    /// Delete instead of add a bookmark
-    delete: bool,
-    /// Path to bookmark, if left empty bookmark the current directory.
-    path: Option<String>,
-}
-
-#[derive(Debug, Args)]
 pub struct OpenSessionCommand {
     #[arg(add = ArgValueCandidates::new(open_session_completion_candidates))]
     /// Name of the session to open.
@@ -240,11 +228,6 @@ impl Cli {
 
             Some(CliCommand::InitRepo(args)) => {
                 init_repo_command(args, config, tmux)?;
-                Ok(SubCommandGiven::Yes)
-            }
-
-            Some(CliCommand::Bookmark(args)) => {
-                bookmark_command(args, config)?;
                 Ok(SubCommandGiven::Yes)
             }
 
@@ -801,27 +784,6 @@ fn init_repo_command(args: &InitRepoCommand, config: Config, tmux: &Tmux) -> Res
     tmux.new_session(Some(&session_name), Some(&path.display().to_string()));
     tmux.set_up_tmux_env(&repo, &session_name, &config)?;
     tmux.switch_to_session(&session_name);
-
-    Ok(())
-}
-
-fn bookmark_command(args: &BookmarkCommand, mut config: Config) -> Result<()> {
-    let path = if let Some(path) = &args.path {
-        path.to_owned()
-    } else {
-        current_dir()
-            .change_context(TmsError::IoError)?
-            .to_string()
-            .change_context(TmsError::IoError)?
-    };
-
-    if !args.delete {
-        config.add_bookmark(path);
-    } else {
-        config.delete_bookmark(path);
-    }
-
-    config.save().change_context(TmsError::ConfigError)?;
 
     Ok(())
 }

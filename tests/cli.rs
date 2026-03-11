@@ -63,7 +63,6 @@ fn tms_config() -> anyhow::Result<()> {
             prompt_color: Some(picker_prompt_color),
         }),
         shortcuts: None,
-        bookmarks: None,
         session_configs: None,
         clone_repo_switch: Some(CloneRepoSwitchConfig::Always),
         input_position: None,

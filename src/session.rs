@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use error_stack::ResultExt;
@@ -21,7 +21,6 @@ pub struct Session {
 
 pub enum SessionType {
     Git(RepoProvider),
-    Bookmark(PathBuf),
 }
 
 impl Session {
@@ -33,7 +32,6 @@ impl Session {
         match &self.session_type {
             SessionType::Git(repo) if repo.is_bare() => repo.path(),
             SessionType::Git(repo) => repo.path().parent().unwrap(),
-            SessionType::Bookmark(path) => path,
         }
     }
 
@@ -41,7 +39,6 @@ impl Session {
         tmux.install_refresh_hook();
         match &self.session_type {
             SessionType::Git(repo) => self.switch_to_repo_session(repo, tmux, config),
-            SessionType::Bookmark(path) => self.switch_to_bookmark_session(tmux, path, config),
         }
     }
 
@@ -73,18 +70,6 @@ impl Session {
         Ok(())
     }
 
-    fn switch_to_bookmark_session(&self, tmux: &Tmux, path: &Path, config: &Config) -> Result<()> {
-        let session_name = self.name.replace('.', "_");
-
-        if !tmux.session_exists(&session_name) {
-            tmux.new_session(Some(&session_name), path.to_str());
-            tmux.run_session_create_script(path, &session_name, config)?;
-        }
-
-        tmux.switch_to_session(&session_name);
-
-        Ok(())
-    }
 }
 
 pub trait SessionContainer {
@@ -111,9 +96,7 @@ impl SessionContainer for HashMap<String, Session> {
 }
 
 pub fn create_sessions(config: &Config) -> Result<impl SessionContainer> {
-    let mut sessions = find_repos(config)?;
-    sessions = append_bookmarks(config, sessions)?;
-
+    let sessions = find_repos(config)?;
     let sessions = generate_session_container(sessions, config)?;
 
     Ok(sessions)
@@ -151,11 +134,10 @@ fn insert_session(
     } else {
         session.name.clone()
     };
-    if let SessionType::Git(repo) = &session.session_type {
-        if config.search_submodules == Some(true) {
-            if let Ok(Some(submodules)) = repo.submodules() {
-                find_submodules(submodules, &visible_name, sessions, config)?;
-            }
+    let SessionType::Git(repo) = &session.session_type;
+    if config.search_submodules == Some(true) {
+        if let Ok(Some(submodules)) = repo.submodules() {
+            find_submodules(submodules, &visible_name, sessions, config)?;
         }
     }
     sessions.insert_session(visible_name, session);
@@ -215,53 +197,3 @@ fn deduplicate_sessions(duplicate_sessions: &mut Vec<Session>) -> Vec<Session> {
     deduplicated
 }
 
-fn append_bookmarks(
-    config: &Config,
-    mut sessions: HashMap<String, Vec<Session>>,
-) -> Result<HashMap<String, Vec<Session>>> {
-    let bookmarks = config.bookmark_paths();
-
-    for path in bookmarks {
-        let session_name = path
-            .file_name()
-            .expect("The file name doesn't end in `..`")
-            .to_string()?;
-        let session = Session::new(session_name, SessionType::Bookmark(path));
-        if let Some(list) = sessions.get_mut(&session.name) {
-            list.push(session);
-        } else {
-            sessions.insert(session.name.clone(), vec![session]);
-        }
-    }
-
-    Ok(sessions)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn verify_session_name_deduplication() {
-        let mut test_sessions = vec![
-            Session::new(
-                "test".into(),
-                SessionType::Bookmark("/search/path/to/proj1/test".into()),
-            ),
-            Session::new(
-                "test".into(),
-                SessionType::Bookmark("/search/path/to/proj2/test".into()),
-            ),
-            Session::new(
-                "test".into(),
-                SessionType::Bookmark("/other/path/to/projects/proj2/test".into()),
-            ),
-        ];
-
-        let deduplicated = deduplicate_sessions(&mut test_sessions);
-
-        assert_eq!(deduplicated[0].name, "projects/proj2/test");
-        assert_eq!(deduplicated[1].name, "to/proj2/test");
-        assert_eq!(deduplicated[2].name, "to/proj1/test");
-    }
-}
