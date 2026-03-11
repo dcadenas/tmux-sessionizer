@@ -111,14 +111,17 @@ fn get_session_list(
         let active_sessions_raw =
             tmux.list_sessions("'#{?session_attached,,#{session_name}#,#{session_last_attached}}'");
 
-        // Parse into (name, timestamp) pairs
+        // Parse into (name, timestamp) pairs — use timestamp 0 for never-attached sessions
         let active_sessions: Vec<(&str, i64)> = active_sessions_raw
             .trim()
             .split('\n')
             .filter_map(|line| {
                 let line = line.trim_matches('\'');
                 let (name, timestamp) = line.split_once(',')?;
-                let timestamp = timestamp.parse::<i64>().ok()?;
+                if name.is_empty() {
+                    return None;
+                }
+                let timestamp = timestamp.parse::<i64>().unwrap_or(0);
                 Some((name, timestamp))
             })
             .collect();
