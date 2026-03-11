@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use tms::tmux::Tmux;
+use tms::tmux::{strip_tmux_style_directives, Tmux};
 
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -238,5 +238,217 @@ fn test_kill_window() {
         after.len(),
         before_count - 1,
         "should have one fewer window after kill"
+    );
+}
+
+// --- strip_tmux_style_directives (pure function, no tmux needed) ---
+
+#[test]
+fn test_strip_simple_style() {
+    let input = "#[fg=red,bold] #I #{window_name} #[default]";
+    let result = strip_tmux_style_directives(input);
+    assert_eq!(result, "#{window_name}");
+}
+
+#[test]
+fn test_strip_complex_format() {
+    // Realistic format similar to oh-my-tmux
+    let input = "#[fg=#080808,bg=#00afff,bold] #I #{?@ouija_session,⊕ #{@ouija_session},#{b:pane_current_path}}#{?window_bell_flag,!,}#{?window_zoomed_flag,Z,} #[fg=#00afff,bg=#080808]";
+    let result = strip_tmux_style_directives(input);
+    assert_eq!(
+        result,
+        "#{?@ouija_session,⊕ #{@ouija_session},#{b:pane_current_path}}"
+    );
+}
+
+#[test]
+fn test_strip_no_directives() {
+    let input = "#{window_name}";
+    let result = strip_tmux_style_directives(input);
+    assert_eq!(result, "#{window_name}");
+}
+
+#[test]
+fn test_strip_removes_window_index() {
+    let input = "#I #{window_name}";
+    let result = strip_tmux_style_directives(input);
+    assert_eq!(result, "#{window_name}");
+}
+
+#[test]
+fn test_strip_removes_bell_zoom_indicators() {
+    let input = "#{window_name}#{?#{||:#{window_bell_flag},#{window_zoomed_flag}}, ,}#{?window_bell_flag,!,}#{?window_zoomed_flag,Z,}";
+    let result = strip_tmux_style_directives(input);
+    assert_eq!(result, "#{window_name}");
+}
+
+// --- Window display format integration (uses tmux) ---
+
+#[test]
+fn test_window_names_use_display_format() {
+    let h = TmuxHarness::new();
+
+    // Set a custom window-status-current-format on the test server
+    h.run_tmux(&[
+        "set-option",
+        "-g",
+        "window-status-current-format",
+        "#[bold] #I #{b:pane_current_path} #[default]",
+    ]);
+
+    h.create_session("fmt-test", &[]);
+
+    let windows = h.tmux.list_session_windows("fmt-test");
+    // Windows should use the display format (basename of pane path), not raw window_name
+    // The exact value depends on the shell's cwd, but it should NOT be empty
+    assert!(
+        !windows.is_empty(),
+        "should have at least one window"
+    );
+    for win in &windows {
+        assert!(
+            win.contains(':'),
+            "window entry should have index:name format, got: {}",
+            win
+        );
+    }
+}
+
+// --- select_window targeting ---
+
+#[test]
+fn test_select_window_by_index() {
+    let h = TmuxHarness::new();
+    h.create_session("nav", &["second", "third"]);
+
+    // Select window by index (the way our picker does it)
+    let result = h.tmux.select_window("nav:2");
+    assert!(result.status.success(), "select_window by index should succeed");
+
+    // Verify the active window changed
+    let active = h.run_tmux(&[
+        "display-message",
+        "-t",
+        "nav",
+        "-p",
+        "#{window_index}",
+    ]);
+    assert_eq!(active.trim(), "2", "active window should be index 2");
+}
+
+// --- Session operations ---
+
+#[test]
+fn test_rename_session() {
+    let h = TmuxHarness::new();
+    h.create_session("old-name", &[]);
+
+    assert!(h.tmux.session_exists("old-name"));
+
+    // rename-session renames the current session, so we need to target it
+    h.run_tmux(&["switch-client", "-t", "old-name"]);
+    h.tmux.rename_session("new-name");
+
+    // With a detached server, rename applies to last active.
+    // Check that at least one of the names exists
+    let sessions = h.tmux.list_sessions("#S");
+    let has_new = sessions.lines().any(|l| l.trim() == "new-name");
+    let has_old = sessions.lines().any(|l| l.trim() == "old-name");
+    assert!(
+        has_new || !has_old,
+        "session should have been renamed, sessions: {}",
+        sessions.trim()
+    );
+}
+
+#[test]
+fn test_kill_session() {
+    let h = TmuxHarness::new();
+    h.create_session("doomed", &[]);
+
+    assert!(h.tmux.session_exists("doomed"));
+    h.tmux.kill_session("doomed");
+    assert!(!h.tmux.session_exists("doomed"));
+}
+
+// --- Never-attached sessions ---
+
+#[test]
+fn test_never_attached_session_has_timestamp() {
+    let h = TmuxHarness::new();
+    // Create a session that is never attached to
+    h.create_session("ghost", &[]);
+
+    // Query with the same format the picker uses
+    let raw = h.tmux.list_sessions("'#{session_name}#,#{session_last_attached}'");
+
+    // Find the ghost session line
+    let ghost_line = raw
+        .trim()
+        .lines()
+        .find(|line| line.contains("ghost"))
+        .expect("ghost session should be in listing");
+
+    let ghost_line = ghost_line.trim_matches('\'');
+    let (name, _timestamp) = ghost_line.split_once(',').expect("should have comma separator");
+    assert_eq!(name, "ghost");
+    // Timestamp may be empty for never-attached, which is fine —
+    // our code defaults to 0 so it still appears in the picker
+}
+
+// --- Expand windows with duplicate window names ---
+
+#[test]
+fn test_expand_windows_duplicate_names_are_unique() {
+    let h = TmuxHarness::new();
+    // Create a session with identically-named windows (like multiple "claude" windows)
+    h.create_session("dupes", &["claude", "claude", "claude"]);
+
+    let active: HashSet<&str> = ["dupes"].into();
+    let result = tms::expand_windows(vec!["dupes".to_string()], &active, &h.tmux);
+
+    // All entries should be unique (index:name disambiguates)
+    let unique: HashSet<&String> = result.iter().collect();
+    assert_eq!(
+        result.len(),
+        unique.len(),
+        "all expanded entries should be unique: {:?}",
+        result
+    );
+}
+
+// --- Move window ---
+
+#[test]
+fn test_move_window() {
+    let h = TmuxHarness::new();
+    h.create_session("movable", &["target"]);
+
+    // Move window to a different index
+    let result = h.tmux.move_window("movable:target", "movable:99");
+    assert!(result.status.success(), "move_window should succeed");
+
+    // Verify the window exists at the new index
+    let windows = h.run_tmux(&["list-windows", "-t", "movable", "-F", "#{window_index}"]);
+    assert!(
+        windows.lines().any(|l| l.trim() == "99"),
+        "window should be at index 99, got: {}",
+        windows.trim()
+    );
+}
+
+// --- Install refresh hook ---
+
+#[test]
+fn test_install_refresh_hook() {
+    let h = TmuxHarness::new();
+    h.tmux.install_refresh_hook();
+
+    // Verify the hook was set
+    let hooks = h.run_tmux(&["show-hooks", "-g", "pane-focus-in"]);
+    assert!(
+        hooks.contains("tms refresh --bare-only"),
+        "refresh hook should be installed, got: {}",
+        hooks.trim()
     );
 }

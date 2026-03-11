@@ -246,30 +246,7 @@ impl Tmux {
             "window-status-current-format",
         ]);
         let raw = Tmux::stdout_to_string(output);
-        // Strip #[...] style directives, then trim surrounding whitespace
-        let mut result = String::new();
-        let mut chars = raw.chars().peekable();
-        while let Some(c) = chars.next() {
-            if c == '#' && chars.peek() == Some(&'[') {
-                // Skip until closing ]
-                for inner in chars.by_ref() {
-                    if inner == ']' {
-                        break;
-                    }
-                }
-            } else {
-                result.push(c);
-            }
-        }
-        // Strip the #I (window index) since we add our own, and trim
-        result = result.replace("#I", "").trim().to_string();
-        // Remove bell/zoom indicators that add noise in a picker
-        // #{?window_bell_flag,!,} and #{?window_zoomed_flag,Z,}
-        result = result
-            .replace("#{?window_bell_flag,!,}", "")
-            .replace("#{?window_zoomed_flag,Z,}", "")
-            .replace("#{?#{||:#{window_bell_flag},#{window_zoomed_flag}}, ,}", "");
-        result.trim().to_string()
+        strip_tmux_style_directives(&raw)
     }
 
     pub fn select_window(&self, window: &str) -> process::Output {
@@ -385,4 +362,28 @@ impl Tmux {
 
 fn is_in_tmux_session() -> bool {
     std::env::var("TERM_PROGRAM").is_ok_and(|program| program == "tmux")
+}
+
+/// Strip tmux style directives (#[...]), window index (#I), and bell/zoom noise
+/// from a window-status format string, returning only the content format.
+pub fn strip_tmux_style_directives(raw: &str) -> String {
+    let mut result = String::new();
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '#' && chars.peek() == Some(&'[') {
+            for inner in chars.by_ref() {
+                if inner == ']' {
+                    break;
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result = result.replace("#I", "").trim().to_string();
+    result = result
+        .replace("#{?window_bell_flag,!,}", "")
+        .replace("#{?window_zoomed_flag,Z,}", "")
+        .replace("#{?#{||:#{window_bell_flag},#{window_zoomed_flag}}, ,}", "");
+    result.trim().to_string()
 }
