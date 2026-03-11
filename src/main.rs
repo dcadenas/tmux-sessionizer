@@ -143,10 +143,43 @@ fn get_session_list(
 
         // Combine: active first, then inactive
         active_list.extend(inactive_list);
+
+        // Append any tmux sessions not already represented (e.g. manually created)
+        let existing: HashSet<String> = active_list.iter().cloned().collect();
+        let existing_normalized: HashSet<String> = existing
+            .iter()
+            .map(|s| s.replace(['.', '-'], "_"))
+            .collect();
+        for (name, _) in &active_sessions {
+            let name = name.trim();
+            if name.is_empty() {
+                continue;
+            }
+            let normalized = name.replace(['.', '-'], "_");
+            if !existing.contains(name) && !existing_normalized.contains(&normalized) {
+                active_list.push(name.to_string());
+            }
+        }
+
         (active_list, Some(active_names_owned))
     } else {
         // Default behavior: alphabetically sorted
-        (all_sessions, None)
+        let mut all = all_sessions;
+        let tmux_sessions_raw = tmux.list_sessions("#S");
+        let existing: HashSet<String> = all.iter().cloned().collect();
+        let existing_normalized: HashSet<String> =
+            all.iter().map(|s| s.replace(['.', '-'], "_")).collect();
+        for name in tmux_sessions_raw.trim().split('\n') {
+            let name = name.trim();
+            if !name.is_empty()
+                && !existing.contains(name)
+                && !existing_normalized.contains(name)
+            {
+                all.push(name.to_string());
+            }
+        }
+        all.sort();
+        (all, None)
     }
 }
 
