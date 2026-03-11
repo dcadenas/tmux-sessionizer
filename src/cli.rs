@@ -320,15 +320,7 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
         sessions.sort_by(|a, b| b.1.cmp(a.1));
     }
 
-    let mut sessions: Vec<String> = sessions.into_iter().map(|s| s.0.to_string()).collect();
-    if let Some(true) = config.switch_filter_unknown {
-        let configured = create_sessions(&config)?;
-
-        sessions = sessions
-            .into_iter()
-            .filter(|session| configured.find_session(session).is_some())
-            .collect::<Vec<String>>();
-    }
+    let sessions: Vec<String> = sessions.into_iter().map(|s| s.0.to_string()).collect();
 
     if let Some(target_session) =
         get_single_selection(&sessions, Some(Preview::SessionPane), &config, tmux)?
