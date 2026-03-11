@@ -67,7 +67,6 @@ fn tms_config() -> anyhow::Result<()> {
         session_configs: None,
         marks: None,
         clone_repo_switch: Some(CloneRepoSwitchConfig::Always),
-        vcs_providers: None,
         input_position: None,
     };
 

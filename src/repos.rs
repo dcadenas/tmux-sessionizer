@@ -1,15 +1,6 @@
 use aho_corasick::{AhoCorasickBuilder, MatchKind};
 use error_stack::{report, Report, ResultExt};
 use gix::{Repository, Submodule};
-use jj_lib::{
-    config::StackedConfig,
-    git_backend::GitBackend,
-    local_working_copy::{LocalWorkingCopy, LocalWorkingCopyFactory},
-    repo::StoreFactories,
-    settings::UserSettings,
-    workspace::{WorkingCopyFactories, Workspace},
-    workspace_store::{SimpleWorkspaceStore, WorkspaceStore},
-};
 use std::{
     collections::{HashMap, VecDeque},
     fs::{self},
@@ -18,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    configs::{Config, SearchDirectory, VcsProviders, DEFAULT_VCS_PROVIDERS},
+    configs::{Config, SearchDirectory},
     dirty_paths::DirtyUtf8Path,
     session::{Session, SessionContainer, SessionType},
     Result, TmsError,
@@ -46,23 +37,8 @@ impl Worktree for gix::worktree::Proxy<'_> {
     }
 }
 
-impl Worktree for Workspace {
-    fn name(&self) -> String {
-        self.working_copy().workspace_name().as_str().to_string()
-    }
-
-    fn path(&self) -> Result<PathBuf> {
-        Ok(self.workspace_root().to_path_buf())
-    }
-
-    fn is_prunable(&self) -> bool {
-        false
-    }
-}
-
 pub enum RepoProvider {
     Git(Box<Repository>),
-    Jujutsu(Workspace),
 }
 
 impl From<gix::Repository> for RepoProvider {
@@ -72,87 +48,33 @@ impl From<gix::Repository> for RepoProvider {
 }
 
 impl RepoProvider {
-    pub fn open(path: &Path, config: &Config) -> Result<Self> {
-        fn open_git(path: &Path) -> Result<RepoProvider> {
-            gix::open(path)
-                .map(|repo| RepoProvider::Git(Box::new(repo)))
-                .change_context(TmsError::GitError)
-        }
-
-        fn open_jj(path: &Path) -> Result<RepoProvider> {
-            let user_settings = UserSettings::from_config(StackedConfig::with_defaults())
-                .change_context(TmsError::GitError)?;
-            let mut store_factories = StoreFactories::default();
-            store_factories.add_backend(
-                GitBackend::name(),
-                Box::new(|settings, store_path| {
-                    Ok(Box::new(GitBackend::load(settings, store_path)?))
-                }),
-            );
-            let mut working_copy_factories = WorkingCopyFactories::new();
-            working_copy_factories.insert(
-                LocalWorkingCopy::name().to_owned(),
-                Box::new(LocalWorkingCopyFactory {}),
-            );
-
-            Workspace::load(
-                &user_settings,
-                path,
-                &store_factories,
-                &working_copy_factories,
-            )
-            .map(RepoProvider::Jujutsu)
-            .change_context(TmsError::GitError)
-        }
-
-        let vcs_provider_config = config
-            .vcs_providers
-            .as_ref()
-            .map(|providers| providers.iter())
-            .unwrap_or(DEFAULT_VCS_PROVIDERS.iter());
-
-        let results = vcs_provider_config
-            .filter_map(|provider| match provider {
-                VcsProviders::Git => open_git(path).ok(),
-                VcsProviders::Jujutsu => open_jj(path).ok(),
-            })
-            .take(1);
-        results
-            .into_iter()
-            .next()
-            .ok_or(TmsError::GitError)
+    pub fn open(path: &Path, _config: &Config) -> Result<Self> {
+        gix::open(path)
+            .map(|repo| RepoProvider::Git(Box::new(repo)))
             .change_context(TmsError::GitError)
     }
 
     pub fn is_worktree(&self) -> bool {
         match self {
             RepoProvider::Git(repo) => !repo.main_repo().is_ok_and(|r| r == **repo),
-            RepoProvider::Jujutsu(repo) => {
-                let repo_path = repo.repo_path();
-                let workspace_repo_path = repo.workspace_root().join(".jj/repo");
-                repo_path != workspace_repo_path
-            }
         }
     }
 
     pub fn path(&self) -> &Path {
         match self {
             RepoProvider::Git(repo) => repo.path(),
-            RepoProvider::Jujutsu(repo) => repo.workspace_root(),
         }
     }
 
     pub fn main_repo(&self) -> Option<PathBuf> {
         match self {
             RepoProvider::Git(repo) => repo.main_repo().map(|repo| repo.path().to_path_buf()).ok(),
-            RepoProvider::Jujutsu(repo) => Some(repo.repo_path().to_path_buf()),
         }
     }
 
     pub fn work_dir(&self) -> Option<&Path> {
         match self {
             RepoProvider::Git(repo) => repo.workdir(),
-            RepoProvider::Jujutsu(repo) => Some(repo.workspace_root()),
         }
     }
 
@@ -164,43 +86,18 @@ impl RepoProvider {
                 .ok_or(TmsError::GitError)?
                 .shorten()
                 .to_string()),
-            RepoProvider::Jujutsu(_) => Err(TmsError::GitError.into()),
         }
     }
+
     pub fn submodules(&'_ self) -> Result<Option<impl Iterator<Item = Submodule<'_>>>> {
         match self {
             RepoProvider::Git(repo) => repo.submodules().change_context(TmsError::GitError),
-            RepoProvider::Jujutsu(_) => Ok(None),
         }
     }
 
     pub fn is_bare(&self) -> bool {
         match self {
             RepoProvider::Git(repo) => repo.is_bare(),
-            RepoProvider::Jujutsu(workspace) => {
-                let loader = workspace.repo_loader();
-                let store = loader.store();
-                let Ok(repo) = loader.load_at_head() else {
-                    return false;
-                };
-                // currently checked out commit, get from current (default) workspace
-                let Some(commit_id) = repo.view().wc_commit_ids().get(workspace.workspace_name())
-                else {
-                    return false;
-                };
-                let Ok(commit) = store.get_commit(commit_id) else {
-                    return false;
-                };
-                // if parent is root commit then it's the only possible parent
-                let Some(Ok(parent)) = commit.parents().next() else {
-                    return false;
-                };
-
-                // root commit is direct parent of current commit => repo is effectively bare
-                // current commit should be empty
-                parent.change_id() == store.root_commit().change_id()
-                    && commit.is_empty(&*repo).unwrap_or_default()
-            }
         }
     }
 
@@ -219,19 +116,10 @@ impl RepoProvider {
                     .change_context(TmsError::GitError)?;
                 Ok(Some((head.clone(), path.to_path_buf().join(&head))))
             }
-            RepoProvider::Jujutsu(_) => {
-                process::Command::new("jj")
-                    .current_dir(path)
-                    .args(["workspace", "add", "-r", "trunk()", "trunk"])
-                    .stderr(Stdio::inherit())
-                    .output()
-                    .change_context(TmsError::GitError)?;
-                Ok(Some(("trunk".into(), path.to_path_buf().join("trunk"))))
-            }
         }
     }
 
-    pub fn worktrees(&'_ self, config: &Config) -> Result<Vec<Box<dyn Worktree + '_>>> {
+    pub fn worktrees(&'_ self, _config: &Config) -> Result<Vec<Box<dyn Worktree + '_>>> {
         match self {
             RepoProvider::Git(repo) => Ok(repo
                 .worktrees()
@@ -239,33 +127,6 @@ impl RepoProvider {
                 .into_iter()
                 .map(|i| Box::new(i) as Box<dyn Worktree>)
                 .collect()),
-
-            RepoProvider::Jujutsu(workspace) => {
-                let repo = workspace
-                    .repo_loader()
-                    .load_at_head()
-                    .change_context(TmsError::GitError)?;
-                let workspace_store = SimpleWorkspaceStore::load(workspace.repo_path())
-                    .change_context(TmsError::GitError)?;
-                let workspaces = repo
-                    .view()
-                    .wc_commit_ids()
-                    .keys()
-                    .filter(|name| name.as_str() != workspace.workspace_name().as_str())
-                    .map(|name| workspace_store.get_workspace_path(name))
-                    .filter_map(|opt| opt.ok().flatten());
-
-                let repos = workspaces
-                    .filter_map(|path| RepoProvider::open(&path, config).ok())
-                    .filter_map(|repo| match repo {
-                        RepoProvider::Jujutsu(workspace) => {
-                            Some(Box::new(workspace) as Box<dyn Worktree>)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                Ok(repos)
-            }
         }
     }
 }

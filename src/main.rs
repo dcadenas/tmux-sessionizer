@@ -306,7 +306,7 @@ fn create_new_directory(name: &str, config: &tms::configs::Config, tmux: &Tmux) 
     // Re-discover sessions to find the one we just created
     let sessions = create_sessions(config)?;
     let session = sessions
-        .find_session(&session_name)
+        .find_session(session_name)
         .ok_or(TmsError::IoError)
         .attach_printable("Hook did not create a discoverable directory")
         .attach_printable(format!(
