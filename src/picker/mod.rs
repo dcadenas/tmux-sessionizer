@@ -245,9 +245,13 @@ impl<'a> Picker<'a> {
                 let text = item.data.as_str();
                 // Check if this is an active session (make it bold)
                 if let Some(ref active) = self.active_sessions {
+                    let base_name = text.split('/').next().unwrap_or(text);
                     // Tmux normalizes both dots and hyphens to underscores in session names
-                    let normalized = text.replace(['.', '-'], "_");
-                    if active.contains(text) || active.contains(&normalized) {
+                    let normalized = base_name.replace(['.', '-'], "_");
+                    if active.contains(text)
+                        || active.contains(base_name)
+                        || active.contains(&normalized)
+                    {
                         return ListItem::new(Span::styled(text, Style::default().bold()));
                     }
                 }
@@ -330,7 +334,14 @@ impl<'a> Picker<'a> {
     fn get_preview_text(&self) -> String {
         if let Some(item_data) = self.get_selected() {
             let output = match self.preview {
-                Some(Preview::SessionPane) => self.tmux.capture_pane(item_data),
+                Some(Preview::SessionPane) => {
+                    if let Some((session, window)) = item_data.split_once('/') {
+                        let target = format!("{}:{}", session.replace('.', "_"), window);
+                        self.tmux.capture_pane(&target)
+                    } else {
+                        self.tmux.capture_pane(item_data)
+                    }
+                }
                 Some(Preview::WindowPane) => self.tmux.capture_pane(
                     item_data
                         .split_once(' ')
