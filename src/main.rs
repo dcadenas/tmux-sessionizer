@@ -84,6 +84,34 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Expand active sessions with multiple windows into `session/window` entries.
+pub fn expand_windows(
+    sessions: Vec<String>,
+    active_names: &HashSet<&str>,
+    tmux: &Tmux,
+) -> Vec<String> {
+    let mut result = Vec::new();
+    for name in sessions {
+        let normalized = name.replace(['.', '-'], "_");
+        let is_active = active_names.contains(name.as_str())
+            || active_names.contains(normalized.as_str());
+        if is_active {
+            let tmux_name = &normalized;
+            let windows = tmux.list_session_windows(tmux_name);
+            if windows.len() > 1 {
+                for win in &windows {
+                    result.push(format!("{}/{}", name, win));
+                }
+            } else {
+                result.push(name);
+            }
+        } else {
+            result.push(name);
+        }
+    }
+    result
+}
+
 /// Get the session list, optionally sorted with active sessions first
 /// Returns (session_list, active_sessions_set)
 fn get_session_list(
@@ -116,8 +144,6 @@ fn get_session_list(
 
         // Build a set of active session names for fast lookup
         let active_names: HashSet<&str> = active_sessions.iter().map(|(name, _)| *name).collect();
-        let active_names_owned: HashSet<String> =
-            active_names.iter().map(|s| s.to_string()).collect();
 
         // Partition sessions into active and inactive
         let (mut active_list, mut inactive_list): (Vec<String>, Vec<String>) =
@@ -164,7 +190,25 @@ fn get_session_list(
             }
         }
 
-        (active_list, Some(active_names_owned))
+        // Expand active sessions with multiple windows into session/window entries
+        let active_names_ref: HashSet<&str> = active_names.iter().copied().collect();
+        let expanded = expand_windows(active_list, &active_names_ref, tmux);
+
+        // Update active_names_owned to include expanded session/window entries
+        let mut active_names_owned: HashSet<String> =
+            active_names.iter().map(|s| s.to_string()).collect();
+        for entry in &expanded {
+            if let Some((session_part, _)) = entry.split_once('/') {
+                let normalized = session_part.replace(['.', '-'], "_");
+                if active_names.contains(session_part)
+                    || active_names.contains(normalized.as_str())
+                {
+                    active_names_owned.insert(entry.clone());
+                }
+            }
+        }
+
+        (expanded, Some(active_names_owned))
     } else {
         // Default behavior: alphabetically sorted
         let mut all = all_sessions;
@@ -182,7 +226,17 @@ fn get_session_list(
             }
         }
         all.sort();
-        (all, None)
+
+        // Build active names set from tmux sessions for window expansion
+        let tmux_active: HashSet<&str> = tmux_sessions_raw
+            .trim()
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let expanded = expand_windows(all, &tmux_active, tmux);
+
+        (expanded, None)
     }
 }
 
