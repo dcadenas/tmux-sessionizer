@@ -220,13 +220,50 @@ impl Tmux {
     }
 
     pub fn list_session_windows(&self, session: &str) -> Vec<String> {
-        let output = self.list_windows("'#{window_index}:#{window_name}'", Some(session));
+        let display_fmt = self.window_display_format();
+        let format = format!("#{{window_index}}:{display_fmt}");
+        let output = self.list_windows(&format, Some(session));
         output
             .trim()
             .split('\n')
-            .map(|line| line.replace('\'', "").trim().to_string())
+            .map(|line| line.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect()
+    }
+
+    /// Extract window display format from tmux's window-status-current-format,
+    /// stripping style directives (#[...]) so only the content format remains.
+    fn window_display_format(&self) -> String {
+        let output = self.execute_tmux_command(&[
+            "show-options",
+            "-gv",
+            "window-status-current-format",
+        ]);
+        let raw = Tmux::stdout_to_string(output);
+        // Strip #[...] style directives, then trim surrounding whitespace
+        let mut result = String::new();
+        let mut chars = raw.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '#' && chars.peek() == Some(&'[') {
+                // Skip until closing ]
+                for inner in chars.by_ref() {
+                    if inner == ']' {
+                        break;
+                    }
+                }
+            } else {
+                result.push(c);
+            }
+        }
+        // Strip the #I (window index) since we add our own, and trim
+        result = result.replace("#I", "").trim().to_string();
+        // Remove bell/zoom indicators that add noise in a picker
+        // #{?window_bell_flag,!,} and #{?window_zoomed_flag,Z,}
+        result = result
+            .replace("#{?window_bell_flag,!,}", "")
+            .replace("#{?window_zoomed_flag,Z,}", "")
+            .replace("#{?#{||:#{window_bell_flag},#{window_zoomed_flag}}, ,}", "");
+        result.trim().to_string()
     }
 
     pub fn select_window(&self, window: &str) -> process::Output {
