@@ -1,0 +1,4 @@
+target/
+lancedb/
+.git/
+firebase-debug.log
