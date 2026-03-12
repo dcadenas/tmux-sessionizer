@@ -37,10 +37,19 @@ pub fn expand_windows(
         let is_active = active_names.contains(name.as_str())
             || active_names.contains(normalized.as_str());
         if is_active {
-            let tmux_name = &normalized;
-            let windows = tmux.list_session_windows(tmux_name);
-            for win in &windows {
-                result.push(format!("{}/{}", name, win));
+            // Try the original name first (tmux keeps hyphens), fall back to normalized
+            let windows = tmux.list_session_windows(&name);
+            let windows = if windows.is_empty() {
+                tmux.list_session_windows(&normalized)
+            } else {
+                windows
+            };
+            if windows.is_empty() {
+                result.push(name);
+            } else {
+                for win in &windows {
+                    result.push(format!("{}/{}", name, win));
+                }
             }
         } else {
             result.push(name);
