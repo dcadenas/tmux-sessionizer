@@ -82,12 +82,12 @@ fn main() -> Result<()> {
         let window_target = window_part
             .split_once(':')
             .map_or(window_part, |(idx, _)| idx);
-        tmux.switch_client(&tmux_session);
         tmux.select_window(&format!("{}:{}", tmux_session, window_target));
+        tmux.switch_to_session(&tmux_session);
     } else if let Some(session) = sessions.find_session(&selected_str) {
         session.switch_to(&tmux, &config)?;
     } else {
-        tmux.switch_client(&selected_str.replace('.', "_"));
+        tmux.switch_to_session(&selected_str.replace('.', "_"));
     }
 
     Ok(())

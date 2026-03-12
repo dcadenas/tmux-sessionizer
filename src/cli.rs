@@ -256,10 +256,10 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
             let window_target = window_part
                 .split_once(':')
                 .map_or(window_part, |(idx, _)| idx);
-            tmux.switch_client(&tmux_session);
             tmux.select_window(&format!("{}:{}", tmux_session, window_target));
+            tmux.switch_to_session(&tmux_session);
         } else {
-            tmux.switch_client(&target_session.replace('.', "_"));
+            tmux.switch_to_session(&target_session.replace('.', "_"));
         }
     }
 
