@@ -25,7 +25,7 @@ pub fn execute_command(command: &str, args: Vec<String>) -> process::Output {
         .unwrap_or_else(|_| panic!("Failed to execute command `{command}`"))
 }
 
-/// Expand active sessions with multiple windows into `session/window` entries.
+/// Expand active sessions into `session/window` entries.
 pub fn expand_windows(
     sessions: Vec<String>,
     active_names: &HashSet<&str>,
@@ -39,12 +39,8 @@ pub fn expand_windows(
         if is_active {
             let tmux_name = &normalized;
             let windows = tmux.list_session_windows(tmux_name);
-            if windows.len() > 1 {
-                for win in &windows {
-                    result.push(format!("{}/{}", name, win));
-                }
-            } else {
-                result.push(name);
+            for win in &windows {
+                result.push(format!("{}/{}", name, win));
             }
         } else {
             result.push(name);

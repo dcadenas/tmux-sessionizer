@@ -117,14 +117,20 @@ fn test_list_session_windows() {
 }
 
 #[test]
-fn test_expand_windows_single_window_not_expanded() {
+fn test_expand_windows_single_window_still_expanded() {
     let h = TmuxHarness::new();
     h.create_session("solo", &[]);
 
     let active: HashSet<&str> = ["solo"].into();
     let result = tms::expand_windows(vec!["solo".to_string()], &active, &h.tmux);
 
-    assert_eq!(result, vec!["solo"]);
+    // Even single-window sessions are expanded so the window display name is searchable
+    assert_eq!(result.len(), 1);
+    assert!(
+        result[0].starts_with("solo/"),
+        "single-window session should be expanded: {:?}",
+        result
+    );
 }
 
 #[test]
