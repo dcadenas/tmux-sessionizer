@@ -142,26 +142,13 @@ fn get_session_list(
                     || active_names.contains(&normalized.as_str())
             });
 
-        // Sort active sessions by timestamp (most recent first)
-        active_list.sort_by_cached_key(|name| {
-            // Find the timestamp for this session
-            // Tmux normalizes both dots and hyphens to underscores
-            let normalized = name.replace(['.', '-'], "_");
-            active_sessions
-                .iter()
-                .find(|(active_name, _)| *active_name == name || *active_name == normalized)
-                .map(|(_, timestamp)| -timestamp) // Negative for descending order
-                .unwrap_or(0)
-        });
-
-        // Sort inactive sessions alphabetically
-        inactive_list.sort();
-
-        // Combine: active first, then inactive
-        active_list.extend(inactive_list);
-
-        // Append any tmux sessions not already represented (e.g. manually created)
-        let existing: HashSet<String> = active_list.iter().cloned().collect();
+        // Add tmux sessions not in discovered repos (e.g. manually created, ouija-started)
+        // before sorting so they get correct recency position
+        let existing: HashSet<String> = active_list
+            .iter()
+            .chain(inactive_list.iter())
+            .cloned()
+            .collect();
         let existing_normalized: HashSet<String> = existing
             .iter()
             .map(|s| s.replace(['.', '-'], "_"))
@@ -176,6 +163,22 @@ fn get_session_list(
                 active_list.push(name.to_string());
             }
         }
+
+        // Sort active sessions by timestamp (most recent first)
+        active_list.sort_by_cached_key(|name| {
+            let normalized = name.replace(['.', '-'], "_");
+            active_sessions
+                .iter()
+                .find(|(active_name, _)| *active_name == name || *active_name == normalized)
+                .map(|(_, timestamp)| -timestamp) // Negative for descending order
+                .unwrap_or(0)
+        });
+
+        // Sort inactive sessions alphabetically
+        inactive_list.sort();
+
+        // Combine: active first, then inactive
+        active_list.extend(inactive_list);
 
         // Expand active sessions with multiple windows into session/window entries
         let active_names_ref: HashSet<&str> = active_names.iter().copied().collect();
