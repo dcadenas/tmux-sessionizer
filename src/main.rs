@@ -111,8 +111,14 @@ fn get_session_list(
         let active_sessions_raw =
             tmux.list_sessions("'#{session_name}#,#{session_last_attached}'");
         // Exclude only the session we're currently in (not all attached sessions,
-        // since multiple terminals can each be attached to different sessions)
-        let current_session = tmux.display_message("#S").trim().to_string();
+        // since multiple terminals can each be attached to different sessions).
+        // Outside tmux, don't exclude anything — display_message is unreliable
+        // without a client context.
+        let current_session = if tms::tmux::is_in_tmux_session() {
+            tmux.display_message("#S").trim().to_string()
+        } else {
+            String::new()
+        };
 
         // Parse into (name, timestamp) pairs — use timestamp 0 for never-attached sessions
         let active_sessions: Vec<(&str, i64)> = active_sessions_raw
@@ -121,7 +127,7 @@ fn get_session_list(
             .filter_map(|line| {
                 let line = line.trim_matches('\'');
                 let (name, timestamp) = line.split_once(',')?;
-                if name.is_empty() || name == current_session {
+                if name.is_empty() || (!current_session.is_empty() && name == current_session) {
                     return None;
                 }
                 let timestamp = timestamp.parse::<i64>().unwrap_or(0);

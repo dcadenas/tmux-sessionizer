@@ -360,7 +360,7 @@ impl Tmux {
     }
 }
 
-fn is_in_tmux_session() -> bool {
+pub fn is_in_tmux_session() -> bool {
     std::env::var("TERM_PROGRAM").is_ok_and(|program| program == "tmux")
 }
 
