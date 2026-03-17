@@ -19,12 +19,18 @@ set -e
 NAME="$1"
 FIRST_DIR="$2"
 
-# Detect Git URL (GitHub, GitLab, etc.) and clone it
+# Detect Git URL (HTTPS or SSH) and clone it
 if [[ "$NAME" =~ ^https?://[^/]+/([^/]+)/([^/]+)(\.git)?$ ]]; then
     REPO_NAME="${BASH_REMATCH[2]%.git}"
+elif [[ "$NAME" =~ ^git@[^:]+:([^/]+)/([^/]+)(\.git)?$ ]]; then
+    REPO_NAME="${BASH_REMATCH[2]%.git}"
+else
+    REPO_NAME=""
+fi
+
+if [[ -n "$REPO_NAME" ]]; then
     TARGET_DIR="$FIRST_DIR/$REPO_NAME"
 
-    # Only clone if directory doesn't exist
     if [[ ! -d "$TARGET_DIR" ]]; then
         echo "Cloning $REPO_NAME..." >&2
         git clone "$NAME" "$TARGET_DIR" 2>&1 | sed 's/^/  /' >&2
@@ -33,7 +39,7 @@ if [[ "$NAME" =~ ^https?://[^/]+/([^/]+)/([^/]+)(\.git)?$ ]]; then
         echo "Directory $REPO_NAME already exists, opening..." >&2
     fi
 
-    echo "$REPO_NAME"  # Tell tms the actual directory name
+    echo "$REPO_NAME"
     exit 0
 fi
 
