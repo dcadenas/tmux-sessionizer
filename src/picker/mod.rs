@@ -20,6 +20,17 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Truncate a string to at most `max_chars` characters, appending "…" if truncated.
+fn truncate_str(s: &str, max_chars: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count > max_chars + 1 {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}…")
+    } else {
+        s.to_string()
+    }
+}
+
 use crate::{
     configs::PickerColorConfig,
     keymap::{Keymap, PickerAction},
@@ -294,16 +305,8 @@ impl<'a> Picker<'a> {
                 format!("  [↵: create {}]", self.filter)
             } else if let Some(selected_name) = self.get_selected() {
                 // Has matches - show both options with truncated names
-                let create_name = if self.filter.len() > 15 {
-                    format!("{}…", &self.filter[..14])
-                } else {
-                    self.filter.clone()
-                };
-                let select_name = if selected_name.len() > 15 {
-                    format!("{}…", &selected_name[..14])
-                } else {
-                    selected_name.to_string()
-                };
+                let create_name = truncate_str(&self.filter, 14);
+                let select_name = truncate_str(selected_name, 14);
                 format!("  [^↵: create {}, ↵: open {}]", create_name, select_name)
             } else {
                 // Has matches but none selected
@@ -361,7 +364,7 @@ impl<'a> Picker<'a> {
             };
 
             if output.status.success() {
-                String::from_utf8(output.stdout).unwrap()
+                String::from_utf8(output.stdout).unwrap_or_default()
             } else {
                 String::default()
             }
