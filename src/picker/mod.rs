@@ -139,6 +139,10 @@ impl<'a> Picker<'a> {
                     match self.keymap.0.get(&key.into()) {
                         Some(PickerAction::Cancel) => return Ok(None),
                         Some(PickerAction::Confirm) => {
+                            // Ensure matcher is up to date before confirming
+                            while self.matcher.tick(10).changed {
+                                self.update_selection();
+                            }
                             if let Some(selected) = self.get_selected() {
                                 return Ok(Some(selected.to_owned()));
                             } else if !self.filter.is_empty() {
