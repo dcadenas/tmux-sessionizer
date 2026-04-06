@@ -252,12 +252,16 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
         get_single_selection(&sessions, Some(Preview::SessionPane), &config, tmux)?
     {
         if let Some((session_part, window_part)) = target_session.split_once('/') {
-            let tmux_session = session_part.replace('.', "_");
-            let window_target = window_part
-                .split_once(':')
-                .map_or(window_part, |(idx, _)| idx);
-            tmux.select_window(&format!("{}:{}", tmux_session, window_target));
-            tmux.switch_to_session(&tmux_session);
+            if window_part.starts_with(|c: char| c.is_ascii_digit()) && window_part.contains(':') {
+                let tmux_session = session_part.replace('.', "_");
+                let window_target = window_part
+                    .split_once(':')
+                    .map_or(window_part, |(idx, _)| idx);
+                tmux.select_window(&format!("{}:{}", tmux_session, window_target));
+                tmux.switch_to_session(&tmux_session);
+            } else {
+                tmux.switch_to_session(&target_session.replace('.', "_"));
+            }
         } else {
             tmux.switch_to_session(&target_session.replace('.', "_"));
         }
