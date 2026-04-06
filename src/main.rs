@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some((session_part, window_part)) = selected_str.split_once('/') {
+    if let Some((session_part, window_part)) = selected_str.rsplit_once('/') {
         if window_part.starts_with(|c: char| c.is_ascii_digit()) && window_part.contains(':') {
             // session/window entry (e.g. "mysession/1:code") — switch to session and focus window
             let tmux_session = session_part.replace('.', "_");

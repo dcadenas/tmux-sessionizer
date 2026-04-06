@@ -251,7 +251,7 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
     if let Some(target_session) =
         get_single_selection(&sessions, Some(Preview::SessionPane), &config, tmux)?
     {
-        if let Some((session_part, window_part)) = target_session.split_once('/') {
+        if let Some((session_part, window_part)) = target_session.rsplit_once('/') {
             if window_part.starts_with(|c: char| c.is_ascii_digit()) && window_part.contains(':') {
                 let tmux_session = session_part.replace('.', "_");
                 let window_target = window_part
