@@ -139,6 +139,10 @@ impl<'a> Picker<'a> {
                     match self.keymap.0.get(&key.into()) {
                         Some(PickerAction::Cancel) => return Ok(None),
                         Some(PickerAction::Confirm) => {
+                            // Git URLs go straight to create/clone
+                            if looks_like_git_url(&self.filter) {
+                                return Ok(Some(format!("__TMS_CREATE_NEW__:{}", self.filter)));
+                            }
                             // Ensure matcher is up to date before confirming
                             while self.matcher.tick(10).changed {
                                 self.update_selection();
@@ -549,3 +553,27 @@ impl<'a> Picker<'a> {
 }
 
 fn request_redraw() {}
+
+fn looks_like_git_url(s: &str) -> bool {
+    (s.starts_with("https://") && s.contains('/')) || (s.starts_with("git@") && s.contains(':'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::looks_like_git_url;
+
+    #[test]
+    fn recognizes_ssh_and_https_git_urls() {
+        assert!(looks_like_git_url("git@github.com:obra/superpowers.git"));
+        assert!(looks_like_git_url(
+            "https://github.com/obra/superpowers.git"
+        ));
+    }
+
+    #[test]
+    fn rejects_non_git_strings() {
+        assert!(!looks_like_git_url("my-project"));
+        assert!(!looks_like_git_url(""));
+        assert!(!looks_like_git_url("git@"));
+    }
+}
