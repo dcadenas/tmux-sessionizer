@@ -402,6 +402,41 @@ fn test_never_attached_session_has_timestamp() {
     // our code defaults to 0 so it still appears in the picker
 }
 
+// --- Expand windows with slashes in display format ---
+
+#[test]
+fn test_expand_windows_with_slashes_in_display_round_trips() {
+    let h = TmuxHarness::new();
+
+    // Display format that produces a '/' in the rendered window name —
+    // for example a branch-name shown via @ouija_session like "feat/foo".
+    h.run_tmux(&[
+        "set-option",
+        "-g",
+        "window-status-current-format",
+        "#I:feat/branch-name",
+    ]);
+
+    h.create_session("repo", &["w1"]);
+
+    let active: HashSet<&str> = ["repo"].into();
+    let result = tms::expand_windows(vec!["repo".to_string()], &active, &h.tmux);
+
+    assert!(!result.is_empty(), "should produce expanded entries");
+    for entry in &result {
+        let parsed = tms::parse_session_window_entry(entry);
+        assert!(
+            parsed.is_some(),
+            "expanded entry should round-trip through parser: {entry:?}"
+        );
+        let (session, _) = parsed.unwrap();
+        assert_eq!(
+            session, "repo",
+            "session should round-trip even when display contains '/': {entry:?}"
+        );
+    }
+}
+
 // --- Expand windows with duplicate window names ---
 
 #[test]

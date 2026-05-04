@@ -240,11 +240,8 @@ impl Tmux {
     /// Extract window display format from tmux's window-status-current-format,
     /// stripping style directives (#[...]) so only the content format remains.
     fn window_display_format(&self) -> String {
-        let output = self.execute_tmux_command(&[
-            "show-options",
-            "-gv",
-            "window-status-current-format",
-        ]);
+        let output =
+            self.execute_tmux_command(&["show-options", "-gv", "window-status-current-format"]);
         let raw = Tmux::stdout_to_string(output);
         strip_tmux_style_directives(&raw)
     }
@@ -312,6 +309,10 @@ impl Tmux {
         repo_name: &str,
         config: &Config,
     ) -> Result<()> {
+        if !config.auto_open_worktrees() {
+            return Ok(());
+        }
+
         let worktrees = repo.worktrees(config).change_context(TmsError::GitError)?;
         let worktrees = worktrees
             .iter()

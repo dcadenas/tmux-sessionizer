@@ -140,6 +140,8 @@ Options:
           Color of the prompt in the picker
       --session-sort-order <Alphabetical | LastAttach>
           Set the sort order of the sessions in the switch command [possible values: Alphabetical, LastAttached]
+      --auto-open-worktrees <true | false>
+          Automatically create tmux windows for git worktrees [possible values: true, false]
   -h, --help
           Print help
 ```

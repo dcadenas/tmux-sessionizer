@@ -8,7 +8,7 @@ use tms::{
     cli::{Cli, SubCommandGiven},
     configs::SessionSortOrderConfig,
     error::{Result, Suggestion, TmsError},
-    expand_windows,
+    expand_windows, parse_session_window_entry,
     session::{create_sessions, SessionContainer},
     tmux::Tmux,
 };
@@ -75,20 +75,13 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some((session_part, window_part)) = selected_str.rsplit_once('/') {
-        if window_part.starts_with(|c: char| c.is_ascii_digit()) && window_part.contains(':') {
-            // session/window entry (e.g. "mysession/1:code") — switch to session and focus window
-            let tmux_session = session_part.replace('.', "_");
-            let window_target = window_part
-                .split_once(':')
-                .map_or(window_part, |(idx, _)| idx);
-            tmux.select_window(&format!("{}:{}", tmux_session, window_target));
-            tmux.switch_to_session(&tmux_session);
-        } else if let Some(session) = sessions.find_session(&selected_str) {
-            session.switch_to(&tmux, &config)?;
-        } else {
-            tmux.switch_to_session(&selected_str.replace('.', "_"));
-        }
+    if let Some((session_part, window_part)) = parse_session_window_entry(&selected_str) {
+        let tmux_session = session_part.replace('.', "_");
+        let window_target = window_part
+            .split_once(':')
+            .map_or(window_part, |(idx, _)| idx);
+        tmux.select_window(&format!("{}:{}", tmux_session, window_target));
+        tmux.switch_to_session(&tmux_session);
     } else if let Some(session) = sessions.find_session(&selected_str) {
         session.switch_to(&tmux, &config)?;
     } else {

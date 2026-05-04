@@ -48,6 +48,7 @@ pub struct Config {
     pub shortcuts: Option<Keymap>,
     pub session_configs: Option<HashMap<String, SessionConfig>>,
     pub clone_repo_switch: Option<CloneRepoSwitchConfig>,
+    pub auto_open_worktrees: Option<bool>,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,6 +63,7 @@ pub struct ConfigExport {
     pub shortcuts: Keymap,
     pub session_configs: HashMap<String, SessionConfig>,
     pub clone_repo_switch: CloneRepoSwitchConfig,
+    pub auto_open_worktrees: bool,
 }
 
 impl From<Config> for ConfigExport {
@@ -83,11 +85,16 @@ impl From<Config> for ConfigExport {
                 .unwrap_or_default(),
             session_configs: value.session_configs.unwrap_or_default(),
             clone_repo_switch: value.clone_repo_switch.unwrap_or_default(),
+            auto_open_worktrees: value.auto_open_worktrees.unwrap_or(true),
         }
     }
 }
 
 impl Config {
+    pub fn auto_open_worktrees(&self) -> bool {
+        self.auto_open_worktrees.unwrap_or(true)
+    }
+
     pub(crate) fn new() -> Result<Self> {
         let config_builder = match env::var("TMS_CONFIG_FILE") {
             Ok(path) => {
@@ -218,7 +225,6 @@ impl Config {
 
         Ok(search_dirs)
     }
-
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, PartialEq, Eq)]

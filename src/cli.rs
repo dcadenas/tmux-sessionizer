@@ -10,7 +10,7 @@ use crate::{
         CloneRepoSwitchConfig, Config, ConfigExport, SearchDirectory, SessionSortOrderConfig,
     },
     dirty_paths::DirtyUtf8Path,
-    execute_command, expand_windows, get_single_selection,
+    execute_command, expand_windows, get_single_selection, parse_session_window_entry,
     picker::Preview,
     repos::RepoProvider,
     session::{create_sessions, SessionContainer},
@@ -124,6 +124,9 @@ pub struct ConfigArgs {
     /// When set to `Foreground`, the new session will only be opened in the background if the active
     /// tmux session has changed since starting the clone process (for long clone processes on larger repos)
     clone_repo_switch: Option<CloneRepoSwitchConfig>,
+    #[arg(long, value_name = "true | false")]
+    /// Automatically create tmux windows for git worktrees
+    auto_open_worktrees: Option<bool>,
 }
 
 #[derive(Debug, Args)]
@@ -251,17 +254,13 @@ fn switch_command(config: Config, tmux: &Tmux) -> Result<()> {
     if let Some(target_session) =
         get_single_selection(&sessions, Some(Preview::SessionPane), &config, tmux)?
     {
-        if let Some((session_part, window_part)) = target_session.rsplit_once('/') {
-            if window_part.starts_with(|c: char| c.is_ascii_digit()) && window_part.contains(':') {
-                let tmux_session = session_part.replace('.', "_");
-                let window_target = window_part
-                    .split_once(':')
-                    .map_or(window_part, |(idx, _)| idx);
-                tmux.select_window(&format!("{}:{}", tmux_session, window_target));
-                tmux.switch_to_session(&tmux_session);
-            } else {
-                tmux.switch_to_session(&target_session.replace('.', "_"));
-            }
+        if let Some((session_part, window_part)) = parse_session_window_entry(&target_session) {
+            let tmux_session = session_part.replace('.', "_");
+            let window_target = window_part
+                .split_once(':')
+                .map_or(window_part, |(idx, _)| idx);
+            tmux.select_window(&format!("{}:{}", tmux_session, window_target));
+            tmux.switch_to_session(&tmux_session);
         } else {
             tmux.switch_to_session(&target_session.replace('.', "_"));
         }
@@ -407,6 +406,10 @@ fn config_command(cmd: &ConfigCommand, mut config: Config) -> Result<()> {
         config.clone_repo_switch = Some(switch.to_owned());
     }
 
+    if let Some(auto_open_worktrees) = args.auto_open_worktrees {
+        config.auto_open_worktrees = Some(auto_open_worktrees);
+    }
+
     config.save().change_context(TmsError::ConfigError)?;
     println!("Configuration has been stored");
     Ok(())
@@ -539,6 +542,10 @@ fn rename_subcommand(args: &RenameCommand, tmux: &Tmux) -> Result<()> {
 }
 
 fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result<()> {
+    if !config.auto_open_worktrees() {
+        return Ok(());
+    }
+
     // Debounce: skip if last refresh was less than 5 seconds ago
     let debounce_file = dirs::config_dir()
         .or_else(dirs::home_dir)
@@ -548,7 +555,11 @@ fn refresh_command(args: &RefreshCommand, config: Config, tmux: &Tmux) -> Result
 
     if let Ok(metadata) = std::fs::metadata(&debounce_file) {
         if let Ok(modified) = metadata.modified() {
-            if modified.elapsed().unwrap_or(std::time::Duration::from_secs(10)) < std::time::Duration::from_secs(5) {
+            if modified
+                .elapsed()
+                .unwrap_or(std::time::Duration::from_secs(10))
+                < std::time::Duration::from_secs(5)
+            {
                 return Ok(());
             }
         }

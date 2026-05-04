@@ -62,6 +62,7 @@ fn tms_config() -> anyhow::Result<()> {
         shortcuts: None,
         session_configs: None,
         clone_repo_switch: Some(CloneRepoSwitchConfig::Always),
+        auto_open_worktrees: None,
         input_position: None,
     };
 
@@ -103,6 +104,37 @@ fn tms_config() -> anyhow::Result<()> {
     assert_eq!(
         expected_config, actual_config,
         "tms config behaves as intended"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn tms_config_sets_auto_open_worktrees() -> anyhow::Result<()> {
+    let directory = tempdir()?;
+    let config_file_path = directory.path().join("config.toml");
+
+    let mut tms = Command::cargo_bin("tms")?;
+
+    tms.env("TMS_CONFIG_FILE", &config_file_path)
+        .arg("config")
+        .args([
+            "--paths",
+            directory.path().to_str().unwrap(),
+            "--auto-open-worktrees",
+            "false",
+        ]);
+
+    tms.assert().success().code(0);
+
+    let actual_config: toml::Value = toml::from_str(&fs::read_to_string(&config_file_path)?)?;
+
+    assert_eq!(
+        actual_config
+            .get("auto_open_worktrees")
+            .and_then(toml::Value::as_bool),
+        Some(false),
+        "tms config should store auto_open_worktrees=false"
     );
 
     Ok(())

@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    path::Path,
-};
+use std::{collections::HashMap, path::Path};
 
 use error_stack::ResultExt;
 
@@ -36,7 +33,9 @@ impl Session {
     }
 
     pub fn switch_to(&self, tmux: &Tmux, config: &Config) -> Result<()> {
-        tmux.install_refresh_hook();
+        if config.auto_open_worktrees() {
+            tmux.install_refresh_hook();
+        }
         match &self.session_type {
             SessionType::Git(repo) => self.switch_to_repo_session(repo, tmux, config),
         }
@@ -69,7 +68,6 @@ impl Session {
 
         Ok(())
     }
-
 }
 
 pub trait SessionContainer {
@@ -190,4 +188,3 @@ fn deduplicate_sessions(duplicate_sessions: &mut Vec<Session>) -> Vec<Session> {
 
     deduplicated
 }
-
